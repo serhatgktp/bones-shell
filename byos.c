@@ -27,10 +27,13 @@ int interp(const struct cmd *c)
         char *filename = c->redir_stdout;
         if ((fd = open(filename,O_CREAT | O_WRONLY | O_TRUNC,0666)) < 0)    // Truncates file upon opening
         {
+            close(fd);
+            close(init_out_stream);
             perror("open"); // If open fails, print an error message
             return 1;   // If open fails, return 1
         }
         dup2(fd, 1); // Set current output stream to fd
+        close(fd);  // We may close fd now that it has been duplicated
     }
 
     if (c->type == LIST)    // Recursive case
@@ -40,44 +43,34 @@ int interp(const struct cmd *c)
         {
             // printf("Interp called recursively!\n");
             int a = interp(&(c->data.list.cmds[i]));
-            if (a != 0)
+            if (a != 0) // Failure case
             {
                 dup2(init_out_stream, 1);   // Restore initial output stream before returning
-                if (fd != 1) {
-                    if(close(fd) < 0)
-                    {
-                        perror("close");
-                    }
-                }
+                close(init_out_stream);
                 return a;
             }
         }
-
         dup2(init_out_stream, 1);   // Restore initial output stream before returning
-        return 0;   // Success case? What if cmd[0] fails? Does the program resume?
+        close(init_out_stream);
+        return 0;   // Success case
     }
 
     else if(c->type == ECHO)
     {
         char *arg = c->data.echo.arg;
 
-        // printf("(ECHO) %s > %s\n", arg, c->redir_stdout);    // Print echo call
-
-        // char echo_arg[MAX_ARG_LEN];
-        // sprintf(echo_arg, "%s", arg);
-
-        // IMPORTANT: MIGHT NEED TO CHANGE FD TO 1 AND REDIRECT SDTOUT USING DUP2
-        if (write(fd, arg, strlen(arg)) != strlen(arg)) {    // Write arg to fd (STDOUT by default)
+        if (write(1, arg, strlen(arg)) != strlen(arg)) {    // Write arg to output stream
             char error_msg[MAX_MSG_LEN];  // Error case for write
             sprintf(error_msg, "(echo) There was an error writing to fd: %d\n", fd);
             write(2, error_msg, strlen(error_msg)); // Write to stderr
             perror("write");
 
             dup2(init_out_stream, 1);   // Restore initial output stream before returning
+            close(init_out_stream);
             return 1;   // Return 1 if writing fails
         }
-
     dup2(init_out_stream, 1);   // Restore initial output stream before returning
+    close(init_out_stream);
     return 0;   // Success case
 
     }
@@ -101,10 +94,8 @@ int interp(const struct cmd *c)
                 int term_sig = WTERMSIG(status);
                 char out_str[MAX_MSG_LEN];
                 
-                //sprintf(out_str, "Process was terminated by signal: %d\n", term_sig);
-                //write(1, out_str, strlen(out_str));
-                
                 dup2(init_out_stream, 1);   // Restore initial output stream before returning
+                close(init_out_stream);
                 return (128 + term_sig);   // Return 128 + signal if the process was killed by signal
             }
 
@@ -112,16 +103,14 @@ int interp(const struct cmd *c)
             else if (WEXITSTATUS(status)){
                 int es = WEXITSTATUS(status);
                 char exit_msg[MAX_MSG_LEN];
-                // sprintf(exit_msg, "Process has exited with status: %d", es);
-                // write(1, exit_msg, strlen(exit_msg));
                 
                 dup2(init_out_stream, 1);   // Restore initial output stream before returning
+                close(init_out_stream);
                 return es;  // Return exit status
             }
         }
         else if(pid == 0)   // Child case ||| For executing consider 'execvp(char *file, char *argv[]);' as it doesn't require a full path to the file
         {
-            // printf("I am a forked proc!\n");
 
             char *path = c->data.forx.pathname;
             char **args = c->data.forx.argv;
@@ -147,9 +136,10 @@ int interp(const struct cmd *c)
             }
 
             dup2(init_out_stream, 1);   // Restore initial output stream before returning
+            close(init_out_stream);
             return 1;   // Exit child
         }
     }
-    
+     
     return 0;   // Success (End Of Function)
 }
