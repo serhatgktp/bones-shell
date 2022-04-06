@@ -84,9 +84,10 @@ int interp(const struct cmd *c)
         pid = fork();
         if (pid > 0)    // Parent case
         {
-            if (waitpid(pid, &status, 0) == -1) // Wait for child
+            if (wait(&status) == -1) // Wait for child
             {
-                perror("\n\nwaitpid failed\n\n");   // Error case for waitpid()
+                perror("wait");   // Error case for waitpid()
+                return 1;
             }
 
             // Case for exit with signal
@@ -115,18 +116,6 @@ int interp(const struct cmd *c)
             char *path = c->data.forx.pathname;
             char **args = c->data.forx.argv;
             
-            // Print out command prior to executing
-            char exec_msg_buffer[MAX_MSG_LEN] = "    [FORK] Executing: ";
-            int i = 0;
-            while (args[i] != NULL)
-            {
-                strcat(exec_msg_buffer, args[i]);
-                strcat(exec_msg_buffer, " ");
-                i++;
-            }
-            strcat(exec_msg_buffer, "\n");
-            // printf("%s", exec_msg_buffer);
-
             int ret = execvp(path, args); // Execute the command
 
             if(ret == -1)   // exec failure case
