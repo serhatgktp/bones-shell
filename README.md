@@ -1,7 +1,7 @@
 # bones-shell
 
 A bare-bones shell implemented in C utilizing the concept of concurrency through forking.
-Aims to illustrate the working principle of a shell using simple argument types (LIST, ECHO, FORK)
+Aims to illustrate the working principle of a generic terminal
 
 - LIST: list of arguments, which the shell processes recursively
 - ECHO: single argument calling the `echo` program
